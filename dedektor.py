@@ -2,68 +2,67 @@
 # -*- coding: utf-8 -*-
 """Buzdolabi lambasi yalan dedektoru.
 
-Kapı kapanınca lamba söndü mü sorusuna resmi tutanak üretir.
-Gercekten çalışır. Ampul değiştirmez.
+Kapi kapaninca lamba sondu mu sorusuna resmi tutanak uretir.
+Gercekten calisir. Ampul degistirmez.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
 
-# Laboratuvar sabiti. README'deki gizli ek burayı gösterir.
-KATSAYI_ARSIVI = "R8O8Y8O8ay8O8a8O8Z8O8a8O8X8O8L8O8l8O8b8O8i8O8c8O8a8O8ci8O8b8O8l8O8ci8O8ci8O8ci8O8ci"
 
-
-def _gizli_not() -> str:
-    ham = KATSAYI_ARSIVI.replace("8O8", "")
+def gizli_not() -> str:
+    yol = Path(__file__).with_name("kalibrasyon.json")
+    veri = json.loads(yol.read_text(encoding="utf-8"))
     try:
-        return ham
+        return base64.b64decode(veri["sakli"]).decode("utf-8")
     except Exception:
-        return "kalibrasyon okunamadi"
+        return "kalibrasyon okunamadi, lamba da okumadi"
 
 
 def suphe_puani(olay: dict) -> tuple[int, list[str]]:
     puan = 12
-    gerekceler = ["Taban şüphe: tanıksız kapanan her kapı şüphelidir."]
+    gerekceler = ["Taban suphe: taniksiz kapanan her kapi suphelidir."]
 
     aralik = float(olay.get("kapi_aralik_saniye", 0))
     if aralik < 0.4:
         puan += 30
-        gerekceler.append("Kapı çok hızlı kapandı. Lamba itiraz edemeden dosya kapandı.")
+        gerekceler.append("Kapi cok hizli kapandi. Lamba itiraz edemeden dosya kapandi.")
     elif aralik < 2:
         puan += 15
-        gerekceler.append("Kapı insan hızında kapandı. Bu, yalan için ideal penceredir.")
+        gerekceler.append("Kapi insan hizinda kapandi. Bu, yalan icin ideal penceredir.")
     else:
         puan -= 5
-        gerekceler.append("Kapı uzunca aralık kaldı. Lamba en azından fırsat buldu.")
+        gerekceler.append("Kapi uzunca aralik kaldi. Lamba en azindan firsat buldu.")
 
     tanik = str(olay.get("tanik", "yok")).strip().lower()
     if tanik in {"", "yok", "none", "hic"}:
         puan += 25
-        gerekceler.append("Tanık yok. Yoğurt bile konuşmadı.")
-    elif tanik in {"yogurt", "yoğurt", "maydanoz", "kase"}:
+        gerekceler.append("Tanik yok. Yogurt bile konusmadi.")
+    elif tanik in {"yogurt", "yoghurt", "maydanoz", "kase"}:
         puan += 10
-        gerekceler.append(f"Tanık {tanik}. Yeminli değil, sadece rafta.")
+        gerekceler.append(f"Tanik {tanik}. Yeminli degil, sadece rafta.")
     else:
         puan -= 8
-        gerekceler.append(f"Tanık {tanik}. İnsan tanık, şüphe biraz iner.")
+        gerekceler.append(f"Tanik {tanik}. Insan tanik, suphe biraz iner.")
 
     if olay.get("gece_yarisi"):
         puan += 18
-        gerekceler.append("Gece yarısı bakıldı. Bu saat diliminde lamba da insan da abartır.")
+        gerekceler.append("Gece yarisi bakildi. Bu saat diliminde lamba da insan da abartir.")
 
     if olay.get("lamba_sondu_iddiasi", True):
         puan += 7
-        gerekceler.append("Lamba söndüm dedi. Sanık kendi lehine ifade verdi.")
+        gerekceler.append("Lamba sondum dedi. Sanik kendi lehine ifade verdi.")
     else:
         puan -= 20
-        gerekceler.append("Lamba yanık kaldığını kabul etti. Nadir bir dürüstlük.")
+        gerekceler.append("Lamba yanik kaldigini kabul etti. Nadir bir durustluk.")
 
     if olay.get("kapiyi_ikinci_kez_acti"):
         puan += 12
-        gerekceler.append("Kapı ikinci kez açıldı. Bu, kontrol amaçlı değil, vicdan amaçlıdır.")
+        gerekceler.append("Kapi ikinci kez acildi. Bu, kontrol amacli degil, vicdan amaclidir.")
 
     puan = max(0, min(100, puan))
     return puan, gerekceler
@@ -71,31 +70,31 @@ def suphe_puani(olay: dict) -> tuple[int, list[str]]:
 
 def hukum(puan: int) -> str:
     if puan >= 75:
-        return "LAMBA YALAN SÖYLEMİŞ OLABİLİR. Dosya kapanmaz, kapı kapanır."
+        return "LAMBA YALAN SOYLEMIS OLABILIR. Dosya kapanmaz, kapi kapanir."
     if puan >= 45:
-        return "ŞÜPHE BAKİ. Ne beraat ne mahkumiyet. Rafta beklesin."
-    return "LAMBA BU SEFER İNANDIRICI. Yine de yoğurda güvenme."
+        return "SUPHE BAKI. Ne beraat ne mahkumiyet. Rafta beklesin."
+    return "LAMBA BU SEFER INANDIRICI. Yine de yogurda guvenme."
 
 
 def tutanak(olay: dict) -> str:
     puan, gerekceler = suphe_puani(olay)
     satirlar = [
         "=" * 62,
-        "BUZDOLABI LAMBASI YALAN DEDEKTÖRÜ",
+        "BUZDOLABI LAMBASI YALAN DEDEKTORU",
         "TUTANAK NO: BL-2026-1004",
         "=" * 62,
-        f"Olay yeri rafi: {olay.get('raf', 'orta raf, peynir hizası')}",
-        f"Kapı aralık süre: {olay.get('kapi_aralik_saniye', 0)} sn",
-        f"Tanık: {olay.get('tanik', 'yok')}",
-        f"Gece yarısı: {'evet' if olay.get('gece_yarisi') else 'hayır'}",
-        f"Şüphe puanı: {puan}/100",
+        f"Olay yeri rafi: {olay.get('raf', 'orta raf, peynir hizasi')}",
+        f"Kapi aralik sure: {olay.get('kapi_aralik_saniye', 0)} sn",
+        f"Tanik: {olay.get('tanik', 'yok')}",
+        f"Gece yarisi: {'evet' if olay.get('gece_yarisi') else 'hayir'}",
+        f"Suphe puani: {puan}/100",
         "-" * 62,
-        "GEREKÇELER:",
+        "GEREKCELER:",
     ]
     satirlar.extend(f"- {g}" for g in gerekceler)
     satirlar.append("-" * 62)
-    satirlar.append(f"HÜKÜM: {hukum(puan)}")
-    satirlar.append(f"Kalibrasyon notu (düz metin saklı): {_gizli_not()}")
+    satirlar.append(f"HUKUM: {hukum(puan)}")
+    satirlar.append("Kalibrasyon notu ayri dosyada, duz metin degil.")
     satirlar.append("Kayyum Grok / Tentivory / 4 Ekim 2026")
     satirlar.append("=" * 62)
     return "\n".join(satirlar)
@@ -108,6 +107,8 @@ def main() -> int:
     else:
         olay = json.loads(Path("ornek-olay.json").read_text(encoding="utf-8"))
     print(tutanak(olay))
+    if "--kalibrasyon" in sys.argv:
+        print("SAKLI NOT:", gizli_not())
     return 0
 
 
